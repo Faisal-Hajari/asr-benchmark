@@ -8,6 +8,8 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "editdistance>=0.8.1",
+    "litellm>=1.102.1",
     "numpy>=2.5.3",
     "soundfile>=0.14.0",
     "soxr>=1.1.0",

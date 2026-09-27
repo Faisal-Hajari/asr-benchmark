@@ -1,3 +1,4 @@
+import io
 from dataclasses import dataclass
 
 import numpy as np
@@ -13,3 +14,10 @@ class Audio:
 def load(path: str, dtype:str="float32", always_2d:bool=True) -> Audio:
     samples, sample_rate = sf.read(path, dtype=dtype, always_2d=always_2d)
     return Audio(samples, sample_rate)
+
+
+def to_wav_bytes(audio: Audio, subtype: str = "PCM_16", audio_format:str ="WAV") -> bytes:
+    buffer = io.BytesIO()
+    # NB: clip so out-of-range floats saturate instead of wrapping around in integer PCM.
+    sf.write(buffer, np.clip(audio.samples, -1, 1), audio.sample_rate, format=audio_format, subtype=subtype)
+    return buffer.getvalue()
