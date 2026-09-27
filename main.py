@@ -39,17 +39,26 @@ if __name__ == "__main__":
     # transcriber = LiteLLMTranscriber(client, language=LANG)
     # main(transcriber)
     
-    # Audar, reproducing its qwen-asr reference setup. Serve with:
-    model = "audarai/Audar-ASR-V1-Turbo"
-    client = VLLMChatCompletionsClient(
-        model,
-        max_workers=NUM_WORKERS,
-        max_num_tokens=MAX_NUM_TOKEN,
-        chat_template=QWEN3_ASR_CHAT_TEMPLATE,
-        language_names={"ar": "Arabic"},
-        wav_subtype="FLOAT",
-    )
-    transcriber = LiteLLMTranscriber(
-        client, language=LANG, transform=qwen_asr_preprocessing(), text_transform=qwen_asr_postprocessing()
-    )
+    # # Audar, reproducing its qwen-asr reference setup. Serve with:
+    # model = "audarai/Audar-ASR-V1-Turbo"
+    # client = VLLMChatCompletionsClient(
+    #     model,
+    #     max_workers=NUM_WORKERS,
+    #     max_num_tokens=MAX_NUM_TOKEN,
+    #     chat_template=QWEN3_ASR_CHAT_TEMPLATE,
+    #     language_names={"ar": "Arabic"},
+    #     wav_subtype="FLOAT",
+    # )
+    # transcriber = LiteLLMTranscriber(
+    #     client, language=LANG, transform=qwen_asr_preprocessing(), text_transform=qwen_asr_postprocessing()
+    # )
+    # main(transcriber)
+
+    # Voxtral Mini, with the model card's recommended vLLM setup (transcription endpoint, temperature 0,
+    # which is the endpoint's default). Serve with:
+    #   MODEL=mistralai/Voxtral-Mini-3B-2507 GPU_MEMORY_UTILIZATION=0.89 bash vllm.sh --tokenizer_mode mistral \
+    #     --config_format mistral --load_format mistral --max-model-len 2048 --max-num-seqs 16 --enforce-eager
+    model = "mistralai/Voxtral-Mini-3B-2507"
+    client = VLLMTranscriptionsClient(model, max_workers=NUM_WORKERS, max_num_tokens=MAX_NUM_TOKEN)
+    transcriber = LiteLLMTranscriber(client, language=LANG)
     main(transcriber)
