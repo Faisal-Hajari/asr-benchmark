@@ -13,7 +13,6 @@ dependencies = [
     "huggingface-hub>=1.33.0",
     "litellm>=1.102.1",
     "numpy>=2.5.3",
-    "pyarrow>=25.0.1",
     "soundfile>=0.14.0",
     "soxr>=1.1.0",
     "tqdm>=4.70.1",
