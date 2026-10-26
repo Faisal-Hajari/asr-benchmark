@@ -326,6 +326,54 @@ class ESCWA(ASRDataset):
         return dataclasses.replace(audio, transcription=text)
 
 
+
+class Mixat(ASRDataset):
+    """Mixat: Emirati Arabic podcasts code-mixed with English, from the authors' Hugging Face release.
+
+    Each clip has the transcript three ways: English in Latin inside brackets ("transcript",
+    the original), English transliterated into Arabic script ("transliteration"), and fully
+    translated into Arabic ("translation"). Clips are labelled "CS" or "Arabic".
+
+    Args:
+        split: "train" or "test".
+        repo_id: Hugging Face dataset repository.
+        text_column: "transcript", "transliteration" or "translation".
+        language: "CS" or "Arabic" keeps only clips with that label; None keeps all.
+    """
+
+    code_switching = True
+
+    def __init__(
+        self,
+        split: str = "test",
+        repo_id: str = "sqrk/mixat-tri",
+        text_column: str = "transcript",
+        language: str | None = None,
+    ):
+        # NB: naming the split's files keeps load_dataset from downloading the other split.
+        dataset = datasets.load_dataset(
+            repo_id,
+            data_files={split: f"data/{split}-*.parquet"},
+            split=split,
+            verification_mode="no_checks",
+        )
+        dataset = dataset.select_columns(["audio", text_column, "language"]).cast_column(
+            "audio", datasets.Audio(decode=False)
+        )
+        if language is not None:
+            dataset = dataset.filter(lambda label: label == language, input_columns="language")
+        self.dataset = dataset
+        self.text_column = text_column
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+    def __getitem__(self, index: int) -> Audio:
+        row = self.dataset[index]
+        # NB: the audio is 44.1 kHz stereo; servers downmix and resample it themselves.
+        audio = load(io.BytesIO(row["audio"]["bytes"]))
+        return dataclasses.replace(audio, transcription=row[self.text_column])
+
 # Buckwalter transliteration to Arabic script, for the letters DACS uses plus the common extensions.
 BUCKWALTER_TO_ARABIC = str.maketrans(
     "'|>&<}AbptvjHxd*rzs$SDTZEg_fqklmnhwYyFNKauio~`{PJVG",

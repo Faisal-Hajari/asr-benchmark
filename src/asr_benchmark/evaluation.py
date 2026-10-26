@@ -8,10 +8,12 @@ import re
 import time
 
 import editdistance
+from collections.abc import Callable
 from tqdm import tqdm
 
 from asr_benchmark.datasets import ASRDataset
 from asr_benchmark.transcriber import Transcriber
+from asr_benchmark.transforms import spelling_postprocessing
 
 EASTERN_TO_WESTERN_NUMERALS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
 
@@ -32,6 +34,15 @@ def normalize_arabic_text(text: str) -> str:
     text = re.sub(r"(^|\s)و\s+", r"\1و", text)  # attach the conjunction و to the next word
     return re.sub(r"\s+", " ", text).strip()
 
+
+
+_SPELLING = spelling_postprocessing()
+
+
+def normalize_spelling_text(text: str) -> str:
+    """The leaderboard normalization followed by spelling_postprocessing: splits a prefix glued
+    to an English word, lowercases English and writes ة as ه. Not comparable with the leaderboard."""
+    return _SPELLING(normalize_arabic_text(text))
 
 def word_error_rate(hypotheses: list[str], references: list[str], use_cer: bool = False) -> float:
     """Corpus-level error rate: total edits over total reference tokens.
@@ -56,13 +67,15 @@ def evaluate(
     dataset: ASRDataset,
     batch_size: int = 16,
     warmup: int = 5,
+    normalize: Callable[[str], str] = normalize_arabic_text,
 ) -> tuple[float, float, float, float, float]:
     """Transcribes every clip in the dataset and scores it against its transcription.
 
-    WER and CER cover every clip, with both sides normalized as in the reference
-    eval.py. Timing metrics leave out batches starting within the first `warmup`
-    clips. batch_size=1 reproduces the reference's one clip per call, which is
-    the only setting where RTF is comparable with the leaderboard.
+    WER and CER cover every clip, with both sides passed through `normalize`; the default is the
+    reference eval.py's, and normalize_spelling_text adds the spelling rules. Timing metrics
+    leave out batches starting within the first `warmup` clips. batch_size=1 reproduces the
+    reference's one clip per call, which is the only setting where RTF is comparable with the
+    leaderboard.
 
     Returns:
         (WER, CER, RTF, average latency in seconds, throughput in audio minutes per second).
@@ -86,8 +99,8 @@ def evaluate(
                 wall_s += elapsed
                 audio_s += sum(audio.audio_length_s for audio in batch)
                 latency_s += [t.inference_time_s for t in transcriptions]
-            references += [normalize_arabic_text(t.audio.transcription) for t in transcriptions]
-            predictions += [normalize_arabic_text(t.text) for t in transcriptions]
+            references += [normalize(t.audio.transcription) for t in transcriptions]
+            predictions += [normalize(t.text) for t in transcriptions]
             progress.update(len(batch))
 
     return (

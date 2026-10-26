@@ -1,11 +1,13 @@
 import dataclasses
 import math
+import re
 from collections.abc import Callable
 
 import numpy as np
 import soxr
 
 from asr_benchmark.audio import Audio
+from asr_benchmark.voxtral_normalization import normalize_arabic_asr
 
 
 class AudioTransform:
@@ -130,6 +132,53 @@ class FixRepetitions(TextTransform):
             i += 1
         pieces.append(text[i:])
         return "".join(pieces)
+
+
+class SplitArabicLatin(TextTransform):
+    """Puts a space where Arabic and Latin letters touch, e.g. الpodcast -> ال podcast."""
+
+    BOUNDARY = re.compile(r"(?<=[\u0600-\u06FF])(?=[A-Za-z])|(?<=[A-Za-z])(?=[\u0600-\u06FF])")
+
+    def __call__(self, text: str) -> str:
+        return self.BOUNDARY.sub(" ", text)
+
+
+class Lowercase(TextTransform):
+    """Lowercases Latin text; Arabic has no case and is left as it is."""
+
+    def __call__(self, text: str) -> str:
+        return text.lower()
+
+
+class TaMarbutaToHa(TextTransform):
+    """Writes ة as ه, so a final ta marbuta and ha, which sound the same there, count as one spelling."""
+
+    def __call__(self, text: str) -> str:
+        return text.replace("ة", "ه")
+
+
+def spelling_postprocessing() -> Compose[str]:
+    """Prediction post-processing for the spelling differences plain WER counts as errors:
+    a prefix glued to an English word, English case, and ة versus ه."""
+    return Compose([SplitArabicLatin(), Lowercase(), TaMarbutaToHa()])
+
+
+class VoxtralArabicNormalize(TextTransform):
+    """Mistral's Arabic ASR normalization from the Voxtral-Mini-4B-Realtime-Arabic card.
+
+    It lowercases, removes diacritics and punctuation, writes ذ as د and ث as ت, splits clitics,
+    maps dialect and loanword spellings and turns spoken numbers into digits. Here it runs on model
+    output only (voxtral_postprocessing); references keep the benchmark's own normalization.
+    """
+
+    def __call__(self, text: str) -> str:
+        return normalize_arabic_asr(text)
+
+
+def voxtral_postprocessing() -> Compose[str]:
+    """Prediction post-processing for Voxtral: strip the leading space the transcription endpoint
+    adds, then Mistral's Arabic normalization."""
+    return Compose([Strip(), VoxtralArabicNormalize()])
 
 
 def qwen_asr_preprocessing() -> Compose[Audio]:
