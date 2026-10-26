@@ -1,16 +1,31 @@
-from asr_benchmark.datasets import MASC, SADA, Casablanca
+from asr_benchmark.datasets import DACS, ESCWA, MASC, MGB2, MGB3, SADA, Casablanca, CommonVoice
 from asr_benchmark.evaluation import evaluate
 from asr_benchmark.transcriber import Transcriber, LiteLLMTranscriber
 from asr_benchmark.transcription_client import QWEN3_ASR_CHAT_TEMPLATE, VLLMChatCompletionsClient, VLLMTranscriptionsClient
 from asr_benchmark.transforms import qwen_asr_postprocessing, qwen_asr_preprocessing
 
-# Built one at a time as the loop reaches them, so a failure in one does not cost loading the others.
-DATASETS = {
-    "SADA": SADA,
-    "Casablanca": Casablanca,
-    "MASC clean": lambda: MASC("clean"),
-    "MASC noisy": lambda: MASC("noisy"),
+# Each dataset is built only when the loop reaches it, so a failure in one does not cost loading the others.
+BENCHMARKS = {
+    "Leaderboard": {
+        "SADA": SADA,
+        "Casablanca": Casablanca,
+        "MASC clean": lambda: MASC("clean"),
+        "MASC noisy": lambda: MASC("noisy"),
+        "MGB2": MGB2,
+        "CommonVoice17": CommonVoice,
+    },
+    "Arabic ASR": {
+        "MGB3": MGB3,
+        "DACS": DACS,
+    },
+    "Code Switch AR-EN": {
+        "ESCWA": ESCWA,
+    },
 }
+# Only the leaderboard's six test sets are averaged, matching how the leaderboard reports its average.
+AVERAGED = {"Leaderboard"}
+# (row label, scale, format) for each value evaluate returns, in order.
+METRICS = [("WER %", 100, ".2f"), ("CER %", 100, ".2f"), ("RTF", 1, ".4f"), ("Latency s", 1, ".3f"), ("Audio min/s", 1, ".2f")]
 NUM_WORKERS = 16
 BATCH_SIZE = 16
 LANG= "ar"
@@ -19,17 +34,26 @@ MAX_NUM_TOKEN=256
 def main(
     transcriber: Transcriber
 ) -> None:
-    results = {name: evaluate(transcriber, make_dataset(), batch_size=BATCH_SIZE) for name, make_dataset in DATASETS.items()}
-    results["Average"] = tuple(sum(column) / len(column) for column in zip(*results.values()))
-    print_table(results)
+    results = {
+        benchmark: {name: evaluate(transcriber, make_dataset(), batch_size=BATCH_SIZE) for name, make_dataset in datasets.items()}
+        for benchmark, datasets in BENCHMARKS.items()
+    }
+    for benchmark, scores in results.items():
+        if benchmark in AVERAGED:
+            scores = {"Avg": tuple(sum(column) / len(column) for column in zip(*scores.values())), **scores}
+        print_table(benchmark, scores)
 
 
-def print_table(results: dict[str, tuple[float, float, float, float, float]]) -> None:
-    print(f"{'Dataset':<11} {'WER %':>7} {'CER %':>7} {'RTF':>7} {'Latency s':>10} {'Audio min/s':>12}")
-    for name, (wer, cer, rtf, latency_s, throughput) in results.items():
-        if name == "Average":
-            print("-" * 58)
-        print(f"{name:<11} {wer * 100:>7.2f} {cer * 100:>7.2f} {rtf:>7.4f} {latency_s:>10.3f} {throughput:>12.2f}")
+def print_table(title: str, scores: dict[str, tuple[float, float, float, float, float]]) -> None:
+    """Prints a markdown table with one column per dataset and one row per metric."""
+    names = ["Metric", *scores]
+    widths = [max(len(name), 11) for name in names]
+    rows = [names, ["-" * width for width in widths]]
+    for index, (label, scale, fmt) in enumerate(METRICS):
+        rows.append([label, *(format(values[index] * scale, fmt) for values in scores.values())])
+    print(f"\n{title}")
+    for row in rows:
+        print("| " + " | ".join(cell.rjust(width) for cell, width in zip(row, widths)) + " |")
 
 
 if __name__ == "__main__":
