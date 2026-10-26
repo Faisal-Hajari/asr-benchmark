@@ -17,8 +17,11 @@ class Audio:
         return self.samples.shape[0] / self.sample_rate
 
 
-def load(path: str | BinaryIO, dtype:str="float32", always_2d:bool=True) -> Audio:
-    samples, sample_rate = sf.read(path, dtype=dtype, always_2d=always_2d)
+def load(
+    path: str | BinaryIO, dtype:str="float32", always_2d:bool=True, start: int = 0, stop: int | None = None
+) -> Audio:
+    """Reads frames [start, stop) of an audio file; the defaults read all of it."""
+    samples, sample_rate = sf.read(path, dtype=dtype, always_2d=always_2d, start=start, stop=stop)
     return Audio(samples, sample_rate)
 
 
