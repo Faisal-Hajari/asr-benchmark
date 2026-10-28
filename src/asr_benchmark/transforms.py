@@ -82,6 +82,14 @@ class Strip(TextTransform):
         return text.strip()
 
 
+class DropLanguageTag(TextTransform):
+    """Drops the "language {name}<asr_text>" header Qwen3-ASR writes when its language is not prefilled,
+    keeping the text after it as qwen-asr 0.0.6's parse_asr_output does for an unforced language."""
+
+    def __call__(self, text: str) -> str:
+        return text.split("<asr_text>", 1)[-1]
+
+
 class FixRepetitions(TextTransform):
     """Collapses runaway repetitions in decoded text.
 
