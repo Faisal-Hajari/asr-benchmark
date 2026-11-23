@@ -1,7 +1,9 @@
 from asr_benchmark.datasets import DACS, ESCWA, MASC, MGB2, MGB3, SADA, ASRDataset, Casablanca, CommonVoice, Mixat
 from asr_benchmark.evaluation import evaluate, normalize_arabic_text, normalize_spelling_text
 from asr_benchmark.transcriber import Transcriber, LiteLLMTranscriber
-from asr_benchmark.transcription_client import QWEN3_ASR_CHAT_TEMPLATE, VLLMChatCompletionsClient, VLLMTranscriptionsClient
+from asr_benchmark.transcription_client import (
+    QWEN3_ASR_CHAT_TEMPLATE, HumainFastTranscriptionClient, VLLMChatCompletionsClient, VLLMTranscriptionsClient
+)
 from asr_benchmark.transforms import (
     Compose, DropLanguageTag, Resample, ToMono, qwen_asr_postprocessing, qwen_asr_preprocessing, voxtral_postprocessing
 )
@@ -223,6 +225,14 @@ def qwen3_asr_own_template(model: str, api_base: str) -> Transcriber:
     )
 
 
+def humain_fast(model: str) -> Transcriber:
+    """HUMAIN Voice's hosted fast transcription API; needs HUMAIN_API_KEY. Sent as 16 kHz mono PCM16."""
+    # Every API response is saved under api_cache/ next to this file; see HumainFastTranscriptionClient.
+    # NB: the API refuses an 11th concurrent connection per key (measured 2026-11-23), so 8 leaves headroom.
+    client = HumainFastTranscriptionClient(model, max_workers=8, cache_dir=Path(__file__).parent / "api_cache/humain")
+    return LiteLLMTranscriber(client, language=LANG, transform=Compose([ToMono(), Resample(16000)]))
+
+
 QWEN3_ASR_SERVE_ARGS = (
     "--trust-request-chat-template", "--max-model-len", "8192", "--max-num-batched-tokens", "8192"
 )
@@ -260,6 +270,8 @@ MODELS = {
          "--max-model-len", "2048", "--max-num-seqs", "16", "--enforce-eager"),
         transcription_endpoint,
     ),
+    # HUMAIN Voice's hosted Bayan code-switch model, in "codeswitch" mode for every dataset.
+    "HUMAIN Bayan AR-EN": ModelSetup("bayan_cs_ar_en", None, humain_fast),
 }
 RUN_MODELS = ["Cohere Transcribe Arabic (aiva-stt)", "lucidya-transcribe-v1 (aiva-stt)"]
 

@@ -1,5 +1,5 @@
 from asr_benchmark.audio import Audio
-from asr_benchmark.transcription_client import VLLMChatCompletionsClient, VLLMTranscriptionsClient
+from asr_benchmark.transcription_client import HumainFastTranscriptionClient, VLLMChatCompletionsClient, VLLMTranscriptionsClient
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -19,7 +19,7 @@ class Transcriber:
 class LiteLLMTranscriber(Transcriber):
     def __init__(
         self,
-        client: VLLMTranscriptionsClient | VLLMChatCompletionsClient,
+        client: VLLMTranscriptionsClient | VLLMChatCompletionsClient | HumainFastTranscriptionClient,
         language: str | None = None,
         transform: Callable[[Audio], Audio] | None = None,
         text_transform: Callable[[str], str] | None = None,
